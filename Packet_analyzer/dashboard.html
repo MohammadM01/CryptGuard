@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DPI Engine Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        background-color: #0f172a; /* Tailwind slate-900 */
+        color: #f8fafc; /* Tailwind slate-50 */
+        font-family:
+          " Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+
+      /* Custom scrollbar for dark theme */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1e293b;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+      }
+
+      .glass-panel {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 1rem;
+        box-shadow:
+          0 10px 15px -3px rgba(0, 0, 0, 0.5),
+          0 4px 6px -2px rgba(0, 0, 0, 0.25);
+      }
+
+      .metric-card {
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+      }
+      .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.5),
+          0 10px 10px -5px rgba(0, 0, 0, 0.25);
+      }
+
+      /* Pulsing dot for status */
+      .status-dot {
+        height: 10px;
+        width: 10px;
+        background-color: #10b981;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        70% {
+          transform: scale(1);
+          box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+        }
+        100% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+      }
+
+      /* Loader */
+      .loader {
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border-left-color: #3b82f6;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body class="min-h-screen p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <header class="flex justify-between items-center mb-8">
+        <div>
+          <h1
+            class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400"
+          >
+            DPI Engine Monitor
+          </h1>
+          <p class="text-slate-400 mt-1 flex items-center">
+            <span class="status-dot mr-2"></span>
+            Deep Packet Inspection Active
+          </p>
+        </div>
+        <button
+          id="analyze-btn"
+          class="bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center shadow-lg shadow-blue-900/50"
+        >
+          <span id="btn-text">Analyze Traffic</span>
+          <span id="btn-loader" class="loader ml-2 hidden"></span>
+        </button>
+      </header>
+
+      <!-- Error Alert (Hidden by default) -->
+      <div
+        id="error-alert"
+        class="hidden bg-red-900/50 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg mb-6 relative"
+        role="alert"
+      >
+        <strong class="font-bold">Error!</strong>
+        <span class="block sm:inline" id="error-msg"
+          >Something went wrong.</span
+        >
+      </div>
+
+      <!-- Metrics Row -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="glass-panel p-6 metric-card border-t-2 border-t-blue-500">
+          <h3
+            class="text-slate-400 text-sm font-medium uppercase tracking-wider"
+          >
+            Total Packets
+          </h3>
+          <p class="text-4xl font-bold mt-2" id="val-total-packets">--</p>
+        </div>
+
+        <div
+          class="glass-panel p-6 metric-card border-t-2 border-t-emerald-500"
+        >
+          <h3
+            class="text-slate-400 text-sm font-medium uppercase tracking-wider"
+          >
+            Forwarded
+          </h3>
+          <p
+            class="text-4xl font-bold mt-2 text-emerald-400"
+            id="val-forwarded"
+          >
+            --
+          </p>
+        </div>
+
+        <div class="glass-panel p-6 metric-card border-t-2 border-t-rose-500">
+          <h3
+            class="text-slate-400 text-sm font-medium uppercase tracking-wider"
+          >
+            Dropped
+          </h3>
+          <p class="text-4xl font-bold mt-2 text-rose-400" id="val-dropped">
+            --
+          </p>
+        </div>
+
+        <div class="glass-panel p-6 metric-card border-t-2 border-t-purple-500">
+          <h3
+            class="text-slate-400 text-sm font-medium uppercase tracking-wider"
+          >
+            Active Flows
+          </h3>
+          <p
+            class="text-4xl font-bold mt-2 text-purple-400"
+            id="val-active-flows"
+          >
+            --
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Content Area -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Left Column: Chart -->
+        <div
+          class="glass-panel p-6 lg:col-span-1 flex flex-col items-center justify-center"
+        >
+          <h2 class="text-xl font-semibold mb-6 w-full text-left">
+            Traffic Breakdown
+          </h2>
+          <div
+            class="relative w-full aspect-square max-w-[300px] flex items-center justify-center"
+          >
+            <canvas id="appChart"></canvas>
+            <div
+              id="chart-placeholder"
+              class="absolute inset-0 flex items-center justify-center text-slate-500 italic"
+            >
+              Run calculation to see chart
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Details -->
+        <div class="glass-panel p-6 lg:col-span-2 flex flex-col">
+          <h2 class="text-xl font-semibold mb-6">Detected Connections</h2>
+
+          <div
+            class="overflow-x-auto flex-grow max-h-[400px] overflow-y-auto pr-2"
+          >
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr
+                  class="border-b border-slate-700 text-slate-400 text-sm uppercase tracking-wider"
+                >
+                  <th class="pb-3 px-2 font-medium">Domain / Hostname</th>
+                  <th class="pb-3 px-2 font-medium">Classified App</th>
+                </tr>
+              </thead>
+              <tbody id="domains-body" class="text-sm">
+                <tr>
+                  <td
+                    colspan="2"
+                    class="py-8 text-center text-slate-500 italic"
+                  >
+                    No data available. Click Analyze Traffic to process PCAP.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let myChart = null;
+
+      // Chart color palette
+      const colors = [
+          '#3b82f6', // blue
+          '#10b981', // emerald
+          '#8b5cf6', // violet
+          '#f59e0b', // amber
+          '#ef4444', // red
+          '#ec4899', // pink
+          '#14b8a6', // teal
+          '#f97316', // orange
+          '#6366f1', // indigo
+          '#84cc16', // lime
+          '#94a3b8'  // slate (unknown)
+      ];
+
+      document.getElementById('analyze-btn').addEventListener('click', async () => {
+          const btn = document.getElementById('analyze-btn');
+          const btnText = document.getElementById('btn-text');
+          const btnLoader = document.getElementById('btn-loader');
+          const errorAlert = document.getElementById('error-alert');
+
+          // Set Loading state
+          btnText.innerText = 'Analyzing...';
+          btnLoader.classList.remove('hidden');
+          btn.disabled = true;
+          btn.classList.add('opacity-75', 'cursor-not-allowed');
+          errorAlert.classList.add('hidden');
+
+          try {
+              // Call our local Python backend API
+              const response = await fetch('/api/analyze');
+              const data = await response.json();
+
+              if (data.error) {
+                  throw new Error(data.error);
+              }
+
+              updateDashboard(data);
+
+          } catch (err) {
+              console.error(err);
+              document.getElementById('error-msg').innerText = err.message || "Failed to fetch data from the analyzer.";
+              errorAlert.classList.remove('hidden');
+          } finally {
+              // Reset button state
+              btnText.innerText = 'Analyze Traffic';
+              btnLoader.classList.add('hidden');
+              btn.disabled = false;
+              btn.classList.remove('opacity-75', 'cursor-not-allowed');
+          }
+      });
+
+      function updateDashboard(data) {
+          // Update Metrics Cards
+          animateValue("val-total-packets", 0, data.metrics.total_packets, 1000);
+          animateValue("val-forwarded", 0, data.metrics.forwarded, 1000);
+          animateValue("val-dropped", 0, data.metrics.dropped, 1000);
+          animateValue("val-active-flows", 0, data.metrics.active_flows, 1000);
+
+          // Hide placeholder
+          document.getElementById('chart-placeholder').classList.add('hidden');
+
+          // Render Chart
+          renderChart(data.application_breakdown);
+
+          // Render Table
+          renderTable(data.detected_domains);
+      }
+
+      function renderChart(appData) {
+          const ctx = document.getElementById('appChart').getContext('2d');
+
+          // Sort data by count descending
+          appData.sort((a, b) => b.count - a.count);
+
+          const labels = appData.map(d => d.name);
+          const counts = appData.map(d => d.count);
+
+          if (myChart) {
+              myChart.destroy();
+          }
+
+          myChart = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                  labels: labels,
+                  datasets: [{
+                      data: counts,
+                      backgroundColor: colors,
+                      borderWidth: 0,
+                      hoverOffset: 4
+                  }]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  cutout: '70%',
+                  plugins: {
+                      legend: {
+                          display: false // Hide default legend to keep it clean, or position: 'bottom'
+                      },
+                      tooltip: {
+                          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                          titleColor: '#f8fafc',
+                          bodyColor: '#cbd5e1',
+                          borderColor: 'rgba(255,255,255,0.1)',
+                          borderWidth: 1,
+                          padding: 12,
+                          displayColors: true,
+                          callbacks: {
+                              label: function(context) {
+                                  let label = context.label || '';
+                                  if (label) {
+                                      label += ': ';
+                                  }
+                                  if (context.parsed !== null) {
+                                      label += context.parsed + ' packets';
+                                  }
+                                  return label;
+                              }
+                          }
+                      }
+                  }
+              }
+          });
+      }
+
+      function renderTable(domains) {
+          const tbody = document.getElementById('domains-body');
+          tbody.innerHTML = ''; // Clear existing
+
+          if (domains.length === 0) {
+              tbody.innerHTML = `<tr><td colspan="2" class="py-4 px-2 text-slate-500 italic">No domains identified.</td></tr>`;
+              return;
+          }
+
+          domains.forEach((item, index) => {
+              const tr = document.createElement('tr');
+              tr.className = `border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${index % 2 === 0 ? '' : 'bg-slate-800/20'}`;
+
+              // Add a subtle badge/color based on the app
+              let appBadgeClass = 'bg-slate-700 text-slate-300'; // default
+              if (item.app.includes('HTTPS')) appBadgeClass = 'bg-blue-900/50 text-blue-300 border border-blue-700/50';
+              else if (item.app.includes('YouTube') || item.app.includes('Netflix')) appBadgeClass = 'bg-red-900/50 text-red-300 border border-red-700/50';
+              else if (item.app.includes('Twitter') || item.app.includes('Facebook') || item.app.includes('Telegram')) appBadgeClass = 'bg-cyan-900/50 text-cyan-300 border border-cyan-700/50';
+              else if (item.app.includes('Spotify')) appBadgeClass = 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/50';
+
+              tr.innerHTML = `
+                  <td class="py-3 px-2 text-slate-300 font-mono text-xs break-all">${item.domain}</td>
+                  <td class="py-3 px-2">
+                      <span class="px-2 py-1 rounded text-xs font-medium ${appBadgeClass}">
+                          ${item.app}
+                      </span>
+                  </td>
+              `;
+              tbody.appendChild(tr);
+          });
+      }
+
+      // Cool number counting animation
+      function animateValue(id, start, end, duration) {
+          const obj = document.getElementById(id);
+          let startTimestamp = null;
+          const step = (timestamp) => {
+              if (!startTimestamp) startTimestamp = timestamp;
+              const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+              // Ease out quad
+              const easeProgress = progress * (2 - progress);
+              obj.innerHTML = Math.floor(easeProgress * (end - start) + start);
+              if (progress < 1) {
+                  window.requestAnimationFrame(step);
+              }
+          };
+          window.requestAnimationFrame(step);
+      }
+    </script>
+  </body>
+</html>
