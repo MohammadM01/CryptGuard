@@ -13,31 +13,31 @@ export function useLiveTrafficStream(isActive: boolean) {
     if (!isActive) return;
 
     // Connect to Python FastAPI Backend
-    const ws = new WebSocket('ws://localhost:8080/api/stream');
+    const ws = new WebSocket('ws://localhost:8000/api/stream');
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data && data.flows) {
-            
+
           setFlows(() => {
-             // We want to merge updates or just take the backend's active list
-             // The backend sends the full active table state currently.
-             const newFlows = data.flows;
-             
-             // Update stats based on the latest flows snapshot
-             let newAnomalous = 0;
-             newFlows.forEach((f: Flow) => {
-                 if (f.riskScore > 30) newAnomalous++;
-             });
-             
-             setStats({
-                 total: newFlows.length,
-                 benign: newFlows.length - newAnomalous,
-                 anomalous: newAnomalous
-             });
-             
-             return newFlows;
+            // We want to merge updates or just take the backend's active list
+            // The backend sends the full active table state currently.
+            const newFlows = data.flows;
+
+            // Update stats based on the latest flows snapshot
+            let newAnomalous = 0;
+            newFlows.forEach((f: Flow) => {
+              if (f.riskScore > 30) newAnomalous++;
+            });
+
+            setStats({
+              total: newFlows.length,
+              benign: newFlows.length - newAnomalous,
+              anomalous: newAnomalous
+            });
+
+            return newFlows;
           });
         }
       } catch (e) {

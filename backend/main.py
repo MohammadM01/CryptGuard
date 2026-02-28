@@ -183,7 +183,7 @@ async def fallback_generator():
     malicious_snis = ["auth-verify-portal.pw", "update-service-win.com"]
     
     while True:
-        await asyncio.sleep(random.uniform(0.1, 0.5))  # Random packet arrival
+        await asyncio.sleep(random.uniform(0.01, 0.1))  # Faster packet arrival for immediate feedback
         
         # 90% benign, 10% malicious
         is_malicious = random.random() > 0.90
@@ -225,16 +225,34 @@ async def sniff_network():
         return
 
     try:
-        # Use PyShark LiveCapture to sniff active network interface.
-        print("Starting PyShark Live Capture on default interface (port 443)...")
-        capture = pyshark.LiveCapture(bpf_filter='tcp port 443')
+        # Since LiveCapture on Windows often requires Admin Npcap privileges, 
+        # we will simulate a live stream by reading the test PCAP file in a loop.
+        print("Starting PyShark File Capture Simulation (reading 'test_dpi.pcap')...")
         
         def run_capture():
-            for packet in capture.sniff_continuously():
-                process_packet(packet)
+            import os
+            pcap_file = r"..\Packet_analyzer\test_dpi.pcap"
+            if not os.path.exists(pcap_file):
+                print(f"Could not find {pcap_file}, falling back to mock generator.")
+                return False
+
+            while True:
+                try:
+                    capture = pyshark.FileCapture(pcap_file, tshark_path=r"C:\Program Files\Wireshark\tshark.exe")
+                    for packet in capture:
+                        process_packet(packet)
+                        time.sleep(0.1)  # Simulate network propagation delay
+                    capture.close()
+                except Exception as e:
+                    print(e)
+                    break
+            return True
                 
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, run_capture)
+        success = await loop.run_in_executor(None, run_capture)
+        if not success:
+             await fallback_generator()
+
     except Exception as e:
         print(f"PyShark Initialization Failed: {e}")
         await fallback_generator()
@@ -253,7 +271,7 @@ async def stream_flows():
             continue
 
         # Convert active flows to output format
-        out_flows = [flow.to_dict() for flow in active_flows.values() if flow.count > 2] # Only send established flows
+        out_flows = [flow.to_dict() for flow in active_flows.values() if flow.count > 0] # Output all active flows for demonstration
         
         if not out_flows:
              out_flows = []
@@ -264,6 +282,7 @@ async def stream_flows():
         dead_clients = set()
         for subscriber in subscribers:
             try:
+                print(f"DEBUG: Broadcasting {len(out_flows)} flows to a client.")
                 await subscriber.send_text(message)
             except Exception:
                 dead_clients.add(subscriber)
@@ -289,4 +308,4 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
