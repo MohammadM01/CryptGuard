@@ -1,0 +1,56 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start CryptGuard",
+            "dependsOn": [
+                "Start Frontend",
+                "Start Backend",
+                "Start DPI Engine"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Start Frontend",
+            "type": "shell",
+            "command": "npm install && npm run dev",
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "isBackground": true,
+            "presentation": {
+                "group": "cryptguard"
+            }
+        },
+        {
+            "label": "Start Backend",
+            "type": "shell",
+            "command": "if not exist venv (python -m venv venv) && call venv\\Scripts\\activate && pip install -r requirements.txt && python main.py",
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "isBackground": true,
+            "presentation": {
+                "group": "cryptguard"
+            }
+        },
+        {
+            "label": "Start DPI Engine",
+            "type": "shell",
+            "command": "g++ -std=c++17 -pthread -O2 -I include -o dpi_engine.exe src/dpi_mt.cpp src/pcap_reader.cpp src/packet_parser.cpp src/sni_extractor.cpp src/types.cpp && python generate_test_pcap.py && dpi_engine.exe test_dpi.pcap output.pcap",
+            "options": {
+                "cwd": "${workspaceFolder}/Packet_analyzer"
+            },
+            "isBackground": true,
+            "presentation": {
+                "group": "cryptguard"
+            }
+        }
+    ]
+}
