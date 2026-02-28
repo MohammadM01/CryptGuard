@@ -13,7 +13,7 @@ export function useLiveTrafficStream(isActive: boolean) {
     if (!isActive) return;
 
     // Connect to Python FastAPI Backend
-    const ws = new WebSocket('ws://localhost:8080/api/stream');
+    const ws = new WebSocket('wss://cryptguard.onrender.com/api/stream');
 
     ws.onmessage = (event) => {
       try {
